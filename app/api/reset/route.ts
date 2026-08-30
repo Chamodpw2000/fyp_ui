@@ -8,10 +8,10 @@ export const maxDuration = 600;
 // Script to run, relative to the server user's home directory.
 // Override with the RESET_SCRIPT environment variable.
 const RESET_SCRIPT = process.env.RESET_SCRIPT || "~/reset.sh";
-// `-n` keeps sudo non-interactive: it fails fast instead of hanging when a
-// password is required (there is no TTY here). Configure passwordless sudo for
-// this script on the server.
-const COMMAND = `sudo -n ${RESET_SCRIPT}`;
+// Sudo password, fed to `sudo -S` on stdin. Override with SUDO_PASSWORD.
+const SUDO_PASSWORD = process.env.SUDO_PASSWORD ?? "11111";
+// `-S` reads the password from stdin; `-p ''` suppresses the prompt text.
+const COMMAND = `sudo -S -p '' ${RESET_SCRIPT}`;
 
 export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
@@ -32,6 +32,11 @@ export async function POST(req: NextRequest) {
       send(`$ ${COMMAND}\n\n`);
 
       const child = spawn(COMMAND, { shell: true, env: process.env });
+
+      // Supply the sudo password on stdin, then close it.
+      child.stdin.on("error", () => {});
+      child.stdin.write(`${SUDO_PASSWORD}\n`);
+      child.stdin.end();
 
       child.stdout.on("data", (chunk: Buffer) => send(chunk.toString()));
       child.stderr.on("data", (chunk: Buffer) => send(chunk.toString()));
