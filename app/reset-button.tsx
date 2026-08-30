@@ -4,13 +4,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import LogModal from "./log-modal";
 
 type Props = {
-  /** Blocked by another long-running task on the page (e.g. a simulation run). */
+  /** Reset target sent to the API (must match an allow-listed script). */
+  target: "lightweight" | "drl";
+  /** Button label. */
+  label: string;
+  /** Title shown on the log modal. */
+  logTitle?: string;
+  /** Blocked by another long-running task on the page. */
   disabled?: boolean;
-  /** Notifies the parent whenever the reset script starts or stops. */
+  /** Notifies the parent whenever this reset script starts or stops. */
   onRunningChange?: (running: boolean) => void;
 };
 
-export default function ResetButton({ disabled = false, onRunningChange }: Props) {
+export default function ResetButton({
+  target,
+  label,
+  logTitle = "Reset script output",
+  disabled = false,
+  onRunningChange,
+}: Props) {
   const [running, setRunning] = useState(false);
   const [output, setOutput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +47,12 @@ export default function ResetButton({ disabled = false, onRunningChange }: Props
     abortRef.current = controller;
 
     try {
-      const res = await fetch("/api/reset", { method: "POST", signal: controller.signal });
+      const res = await fetch("/api/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target }),
+        signal: controller.signal,
+      });
 
       if (!res.ok || !res.body) {
         const detail = await res.text().catch(() => "");
@@ -72,7 +89,7 @@ export default function ResetButton({ disabled = false, onRunningChange }: Props
           disabled={running || disabled}
           className="flex h-11 items-center justify-center rounded-full border border-solid border-black/[.12] px-5 text-sm font-medium transition-colors hover:bg-black/[.04] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.16] dark:hover:bg-[#1a1a1a]"
         >
-          {running ? "Resetting…" : "Reset Light weight mode"}
+          {running ? "Resetting…" : label}
         </button>
         {(running || output) && (
           <button
@@ -87,11 +104,6 @@ export default function ResetButton({ disabled = false, onRunningChange }: Props
         )}
       </div>
 
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        Runs <code className="font-mono">sudo ~/reset.sh</code> on the server (needs passwordless
-        sudo for the script).
-      </p>
-
       {error && (
         <p className="text-sm font-medium text-red-600 dark:text-red-400">Error: {error}</p>
       )}
@@ -102,7 +114,7 @@ export default function ResetButton({ disabled = false, onRunningChange }: Props
         text={output}
         running={running}
         onStop={stop}
-        title="Reset script output"
+        title={logTitle}
       />
     </div>
   );

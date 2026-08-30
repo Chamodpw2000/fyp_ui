@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import LogModal from "./log-modal";
+import PerformanceModal from "./performance-modal";
 import AttackerNodeModal, {
   ATTACK_CATEGORIES,
   EMPTY_ATTACKERS,
@@ -43,6 +44,7 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
     useState<AttackerPercentages>(EMPTY_PERCENTAGES);
   const [modalOpen, setModalOpen] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [perfOpen, setPerfOpen] = useState(false);
 
   const [running, setRunning] = useState(false);
   const [output, setOutput] = useState("");
@@ -52,6 +54,7 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
 
   const closeModal = useCallback(() => setModalOpen(false), []);
   const closeLogs = useCallback(() => setLogsOpen(false), []);
+  const closePerf = useCallback(() => setPerfOpen(false), []);
 
   useEffect(() => {
     onRunningChange?.(running);
@@ -181,7 +184,7 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              split_path_drop_ratio
+              Split Path Attack Drop Ratio
             </span>
             <input
               type="number"
@@ -196,7 +199,7 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              ij_drop_ratio
+              Interleaved Grayhole Attack Drop Ratio
             </span>
             <input
               type="number"
@@ -211,7 +214,7 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
           </label>
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              fs_stretch_ratio
+              Flow Stretching Attack Stretch Ratio
             </span>
             <input
               type="number"
@@ -296,6 +299,14 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
         >
           {running ? "Running simulation…" : "Run ns-3 simulation"}
         </button>
+        <button
+          type="button"
+          onClick={() => setPerfOpen(true)}
+          disabled={disabled}
+          className="flex h-12 items-center justify-center rounded-full border border-solid border-black/[.12] px-6 text-base font-medium transition-colors hover:bg-black/[.04] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.16] dark:hover:bg-[#1a1a1a]"
+        >
+          Show performance
+        </button>
         {running && (
           <button
             type="button"
@@ -319,11 +330,6 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
           </button>
         )}
       </div>
-
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Runs <code className="font-mono">./waf --run &apos;scratch/auto …&apos;</code> on the server
-        (working dir: <code className="font-mono">/home/chamod/ns-allinone-3.35/ns-3.35</code>).
-      </p>
 
       {error && (
         <p className="text-sm font-medium text-red-600 dark:text-red-400">Error: {error}</p>
@@ -359,6 +365,8 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
         running={running}
         onStop={stop}
       />
+
+      <PerformanceModal open={perfOpen} onClose={closePerf} />
 
       <AttackerNodeModal
         open={modalOpen}
