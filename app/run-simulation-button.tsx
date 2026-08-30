@@ -78,7 +78,7 @@ export default function RunSimulationButton() {
 
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
         Runs <code className="font-mono">./waf --run &apos;scratch/auto …&apos;</code> on the server
-        (working dir: <code className="font-mono">NS3_DIR</code> or the app root).
+        (working dir: <code className="font-mono">/home/chamod/ns-allinone-3.35/ns-3.35</code>).
       </p>
 
       {error && (

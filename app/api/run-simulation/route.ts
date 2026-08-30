@@ -8,7 +8,7 @@ export const maxDuration = 3600;
 
 // Directory that contains the `waf` script (the ns-3 root).
 // Override with the NS3_DIR environment variable.
-const NS3_DIR = process.env.NS3_DIR || process.cwd();
+const NS3_DIR = process.env.NS3_DIR || "/home/chamod/ns-allinone-3.35/ns-3.35";
 
 // The exact command requested, flattened onto a single line so it does not
 // depend on shell line-continuation behaviour.
