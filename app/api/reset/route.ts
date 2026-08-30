@@ -5,13 +5,13 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 600;
 
-// Home directory whose environment the scripts expect (their paths live under
-// here, e.g. ~/fabric/...). Override with RESET_HOME.
+// Home directory the scripts expect (their paths live under here, e.g.
+// ~/fabric/...). Override with RESET_HOME.
 const RESET_HOME = process.env.RESET_HOME || "/home/chamod";
-// Sudo password, fed to `sudo -S` on stdin. Override with SUDO_PASSWORD.
+// Password piped on stdin so any `sudo -S` calls *inside* a script can read it.
+// The scripts themselves are run as the current (non-root) user. Override with
+// SUDO_PASSWORD.
 const SUDO_PASSWORD = process.env.SUDO_PASSWORD ?? "11111";
-const CHILD_PATH =
-  process.env.PATH || "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
 // Allow-listed targets → script paths. A leading "~" is expanded against RESET_HOME.
 const SCRIPTS = {
@@ -23,12 +23,8 @@ type Target = keyof typeof SCRIPTS;
 const expandHome = (p: string) => p.replace(/^~(?=\/|$)/, RESET_HOME);
 
 function buildCommand(target: Target): string {
-  const script = expandHome(SCRIPTS[target]);
-  // `sudo` normally wipes the environment, so the script would see HOME=/root and
-  // a trimmed PATH — unlike an interactive `sudo ~/reset.sh`. Force HOME/PATH back
-  // with `env` so it behaves the same as running it by hand.
-  // `-S` reads the password from stdin; `-p ''` suppresses the prompt text.
-  return `sudo -S -p '' env HOME='${RESET_HOME}' PATH='${CHILD_PATH}' bash '${script}'`;
+  // Run as the current user — no sudo wrapper, nothing runs as root here.
+  return `bash '${expandHome(SCRIPTS[target])}'`;
 }
 
 export async function POST(req: NextRequest) {
