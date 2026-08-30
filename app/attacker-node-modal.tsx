@@ -11,7 +11,7 @@ export const TOTAL_NODES = MAX_NODE_ID - MIN_NODE_ID + 1;
 
 export const ATTACK_CATEGORIES = [
   { key: "split_path", label: "Split path", swatch: "bg-sky-500" },
-  { key: "interleaved_jamming", label: "Interleaved jamming", swatch: "bg-amber-500" },
+  { key: "interleaved_jamming", label: "Interleaved Grayhole", swatch: "bg-amber-500" },
   { key: "flow_stretching", label: "Flow stretching", swatch: "bg-violet-500" },
   { key: "asymmetric_spoofing", label: "Asymmetric spoofing", swatch: "bg-rose-500" },
 ] as const;

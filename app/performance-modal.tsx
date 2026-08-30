@@ -16,6 +16,15 @@ const DISPLAY_ORDER: AttackTypeLabel[] = [
 ];
 const OVERALL: AttackTypeLabel = "All Attacks (Overall)";
 
+// The CSV emits "Interleaved Jamming"; the UI always shows "Interleaved Grayhole".
+const DISPLAY_LABELS: Record<AttackTypeLabel, string> = {
+  "Split Path": "Split Path",
+  "Flow Stretching": "Flow Stretching",
+  "Interleaved Jamming": "Interleaved Grayhole",
+  "Asym Link Spoofing": "Asym Link Spoofing",
+  "All Attacks (Overall)": "All Attacks (Overall)",
+};
+
 function rank(attackType: string): number {
   const i = DISPLAY_ORDER.indexOf(attackType as AttackTypeLabel);
   if (i !== -1) return i;
@@ -185,7 +194,7 @@ export default function PerformanceModal({ open, onClose }: Props) {
                           : "border-t border-black/[.06] dark:border-white/[.08]"
                       }
                     >
-                      <td className="px-3 py-2 text-left">{r.attackType}</td>
+                      <td className="px-3 py-2 text-left">{DISPLAY_LABELS[r.attackType]}</td>
                       <td className={NUM_COL}>{r.tp}</td>
                       <td className={NUM_COL}>{r.fp}</td>
                       <td className={NUM_COL}>{r.tn}</td>
