@@ -9,9 +9,17 @@ type Props = {
   text: string;
   running: boolean;
   onStop?: () => void;
+  title?: string;
 };
 
-export default function LogModal({ open, onClose, text, running, onStop }: Props) {
+export default function LogModal({
+  open,
+  onClose,
+  text,
+  running,
+  onStop,
+  title = "Simulation logs",
+}: Props) {
   const preRef = useRef<HTMLPreElement | null>(null);
   // Whether the view is pinned to the bottom (auto-follow new output).
   const stickToBottom = useRef(true);
@@ -54,7 +62,7 @@ export default function LogModal({ open, onClose, text, running, onStop }: Props
       <div className="relative z-10 flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-black/[.08] bg-white shadow-2xl dark:border-white/[.12] dark:bg-zinc-900">
         <header className="flex items-center justify-between border-b border-black/[.08] px-5 py-4 dark:border-white/[.1]">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Simulation logs</h2>
+            <h2 className="text-sm font-semibold">{title}</h2>
             <span
               className={`flex items-center gap-1.5 text-xs ${
                 running ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-400"

@@ -92,6 +92,7 @@ export default function AttackerNodeModal({
   }
   const totalNodes = assignment.size;
   const totalPercent = ATTACK_CATEGORIES.reduce((sum, c) => sum + percentages[c.key], 0);
+  const percentInvalid = mode === "percentage" && totalPercent > 100;
 
   function toggle(id: number) {
     const next: AttackerMap = {
@@ -293,7 +294,8 @@ export default function AttackerNodeModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc]"
+              disabled={percentInvalid}
+              className="rounded-full bg-foreground px-4 py-1.5 text-xs font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-[#ccc]"
             >
               Done
             </button>

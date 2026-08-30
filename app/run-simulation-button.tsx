@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import LogModal from "./log-modal";
 import AttackerNodeModal, {
   ATTACK_CATEGORIES,
@@ -23,7 +23,14 @@ const DEFAULTS = {
 const fieldClass =
   "h-10 rounded-md border border-black/[.12] bg-transparent px-3 text-sm outline-none focus:border-sky-500 dark:border-white/[.16]";
 
-export default function RunSimulationButton() {
+type Props = {
+  /** Blocked by another long-running task on the page (e.g. the reset script). */
+  disabled?: boolean;
+  /** Notifies the parent whenever the simulation starts or stops. */
+  onRunningChange?: (running: boolean) => void;
+};
+
+export default function RunSimulationButton({ disabled = false, onRunningChange }: Props) {
   const [simTime, setSimTime] = useState(DEFAULTS.simTime);
   const [attackSeed, setAttackSeed] = useState(DEFAULTS.attackSeed);
   const [splitPathDropRatio, setSplitPathDropRatio] = useState(DEFAULTS.splitPathDropRatio);
@@ -46,11 +53,19 @@ export default function RunSimulationButton() {
   const closeModal = useCallback(() => setModalOpen(false), []);
   const closeLogs = useCallback(() => setLogsOpen(false), []);
 
+  useEffect(() => {
+    onRunningChange?.(running);
+  }, [running, onRunningChange]);
+
   const totalIdAttackers = ATTACK_CATEGORIES.reduce((sum, c) => sum + attackers[c.key].length, 0);
   const totalPercent = ATTACK_CATEGORIES.reduce((sum, c) => sum + attackerPercentages[c.key], 0);
   const hasAttackers = attackerMode === "ids" ? totalIdAttackers > 0 : totalPercent > 0;
+  const percentInvalid = attackerMode === "percentage" && totalPercent > 100;
+  // Any control that should be inert while this run — or the reset script — is active.
+  const controlsDisabled = running || disabled;
 
   async function run() {
+    if (percentInvalid) return;
     setRunning(true);
     setError(null);
     setOutput("");
@@ -132,7 +147,7 @@ export default function RunSimulationButton() {
           <button
             type="button"
             onClick={reset}
-            disabled={running}
+            disabled={controlsDisabled}
             className="text-xs font-medium text-sky-600 hover:underline disabled:opacity-50 dark:text-sky-400"
           >
             Reset to defaults
@@ -149,7 +164,7 @@ export default function RunSimulationButton() {
               min="1"
               value={simTime}
               onChange={(e) => setSimTime(e.target.value)}
-              disabled={running}
+              disabled={controlsDisabled}
               className={fieldClass}
             />
           </label>
@@ -160,7 +175,7 @@ export default function RunSimulationButton() {
               step="1"
               value={attackSeed}
               onChange={(e) => setAttackSeed(e.target.value)}
-              disabled={running}
+              disabled={controlsDisabled}
               className={fieldClass}
             />
           </label>
@@ -175,7 +190,7 @@ export default function RunSimulationButton() {
               step="0.01"
               value={splitPathDropRatio}
               onChange={(e) => setSplitPathDropRatio(e.target.value)}
-              disabled={running}
+              disabled={controlsDisabled}
               className={fieldClass}
             />
           </label>
@@ -190,7 +205,7 @@ export default function RunSimulationButton() {
               step="0.01"
               value={ijDropRatio}
               onChange={(e) => setIjDropRatio(e.target.value)}
-              disabled={running}
+              disabled={controlsDisabled}
               className={fieldClass}
             />
           </label>
@@ -205,7 +220,7 @@ export default function RunSimulationButton() {
               step="0.01"
               value={fsStretchRatio}
               onChange={(e) => setFsStretchRatio(e.target.value)}
-              disabled={running}
+              disabled={controlsDisabled}
               className={fieldClass}
             />
           </label>
@@ -219,7 +234,7 @@ export default function RunSimulationButton() {
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              disabled={running}
+              disabled={controlsDisabled}
               className="rounded-full border border-black/[.12] px-4 py-1.5 text-xs font-medium transition-colors hover:bg-black/[.04] disabled:opacity-50 dark:border-white/[.16] dark:hover:bg-white/[.06]"
             >
               {hasAttackers ? "Edit attacker nodes" : "Select attacker nodes"}
@@ -229,6 +244,13 @@ export default function RunSimulationButton() {
           {!hasAttackers && (
             <p className="text-xs text-zinc-400 dark:text-zinc-500">
               No attacker nodes selected (default).
+            </p>
+          )}
+
+          {percentInvalid && (
+            <p className="text-xs font-medium text-red-600 dark:text-red-400">
+              Attacker percentages add up to {totalPercent}% — must be 100% or less before you can
+              run the simulation.
             </p>
           )}
 
@@ -268,7 +290,8 @@ export default function RunSimulationButton() {
         <button
           type="button"
           onClick={run}
-          disabled={running}
+          disabled={controlsDisabled || percentInvalid}
+          title={percentInvalid ? "Attacker percentages exceed 100%" : undefined}
           className="flex h-12 items-center justify-center rounded-full bg-foreground px-6 text-base font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
         >
           {running ? "Running simulation…" : "Run ns-3 simulation"}
@@ -286,7 +309,8 @@ export default function RunSimulationButton() {
           <button
             type="button"
             onClick={() => setLogsOpen(true)}
-            className="flex h-12 items-center gap-2 rounded-full border border-solid border-black/[.12] px-6 text-base font-medium transition-colors hover:bg-black/[.04] dark:border-white/[.16] dark:hover:bg-[#1a1a1a]"
+            disabled={disabled}
+            className="flex h-12 items-center gap-2 rounded-full border border-solid border-black/[.12] px-6 text-base font-medium transition-colors hover:bg-black/[.04] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.16] dark:hover:bg-[#1a1a1a]"
           >
             {running && (
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />

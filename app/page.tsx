@@ -1,4 +1,4 @@
-import RunSimulationButton from "./run-simulation-button";
+import HomeControls from "./home-controls";
 
 export default function Home() {
   return (
@@ -14,7 +14,7 @@ export default function Home() {
           </h1>
         </header>
 
-        <RunSimulationButton />
+        <HomeControls />
       </main>
     </div>
   );
