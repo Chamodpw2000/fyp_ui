@@ -5,13 +5,20 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 600;
 
-// Script to run, relative to the server user's home directory.
-// Override with the RESET_SCRIPT environment variable.
-const RESET_SCRIPT = process.env.RESET_SCRIPT || "~/reset.sh";
+// Home directory whose environment the script expects (its paths live under
+// here, e.g. ~/fabric/...). Override with RESET_HOME.
+const RESET_HOME = process.env.RESET_HOME || "/home/chamod";
+// Script to run. A leading "~" is expanded against RESET_HOME. Override with RESET_SCRIPT.
+const RESET_SCRIPT = (process.env.RESET_SCRIPT || "~/reset.sh").replace(/^~(?=\/|$)/, RESET_HOME);
 // Sudo password, fed to `sudo -S` on stdin. Override with SUDO_PASSWORD.
 const SUDO_PASSWORD = process.env.SUDO_PASSWORD ?? "11111";
+const CHILD_PATH =
+  process.env.PATH || "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+// `sudo` normally wipes the environment, so the script sees HOME=/root and a
+// trimmed PATH — unlike an interactive `sudo ~/reset.sh`. Force HOME/PATH back
+// with `env` so it behaves the same as running it by hand.
 // `-S` reads the password from stdin; `-p ''` suppresses the prompt text.
-const COMMAND = `sudo -S -p '' ${RESET_SCRIPT}`;
+const COMMAND = `sudo -S -p '' env HOME='${RESET_HOME}' PATH='${CHILD_PATH}' bash '${RESET_SCRIPT}'`;
 
 export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
@@ -31,7 +38,11 @@ export async function POST(req: NextRequest) {
 
       send(`$ ${COMMAND}\n\n`);
 
-      const child = spawn(COMMAND, { shell: true, env: process.env });
+      const child = spawn(COMMAND, {
+        shell: true,
+        cwd: RESET_HOME,
+        env: { ...process.env, HOME: RESET_HOME },
+      });
 
       // Supply the sudo password on stdin, then close it.
       child.stdin.on("error", () => {});
