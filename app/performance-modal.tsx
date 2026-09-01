@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AttackTypeLabel, MccRow, MccTableResponse } from "@/types/mcc";
 import type { RemovedNodesResponse } from "@/types/removed-nodes";
+import type { HealthResponse } from "@/types/health";
 import type { SimulationMode } from "./run-simulation-button";
 import type { AttackerMap } from "./attacker-node-modal";
 import NetworkMap from "./network-map";
@@ -71,7 +72,7 @@ export default function PerformanceModal({
   mode,
   attackers,
 }: Props) {
-  const isLw = mode === "lightweight";
+  const isDrl = mode === "drl";
   const [rows, setRows] = useState<MccRow[] | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [phase, setPhase] = useState<"loading" | "waiting" | "error">(
@@ -84,6 +85,10 @@ export default function PerformanceModal({
   // Node IDs pruned by the agent (union of every cycle in removed_nodes.csv).
   const [removed, setRemoved] = useState<ReadonlySet<number>>(() => new Set());
   const [removalAlert, setRemovalAlert] = useState<string | null>(null);
+  // Per-node health 0–1 from the DRL agent (health.csv). Empty in LW mode.
+  const [health, setHealth] = useState<ReadonlyMap<number, number>>(
+    () => new Map(),
+  );
 
   const hadDataRef = useRef(false);
 
@@ -96,6 +101,7 @@ export default function PerformanceModal({
     setErrorMsg(null);
     setRemoved(new Set());
     setRemovalAlert(null);
+    setHealth(new Map());
   }, [mode]);
 
   // Auto-dismiss the removal alert.
@@ -175,18 +181,20 @@ export default function PerformanceModal({
     };
   }, [open, mode]);
 
-  // Removed-nodes feed — same 10s cadence, LW mode only (that's where the map is).
+  // Removed-nodes feed — same 10s cadence, for whichever mode is active.
   useEffect(() => {
-    if (!open || !isLw) return;
+    if (!open) return;
 
     let cancelled = false;
     let baselined = false; // first fetch adopts existing cycles silently
     let seenCycle = 0;
     const controller = new AbortController();
+    const url =
+      mode === "drl" ? "/api/removed-nodes?mode=drl" : "/api/removed-nodes";
 
     async function poll() {
       try {
-        const res = await fetch("/api/removed-nodes", {
+        const res = await fetch(url, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -231,7 +239,39 @@ export default function PerformanceModal({
       controller.abort();
       clearInterval(id);
     };
-  }, [open, isLw]);
+  }, [open, mode]);
+
+  // Per-node health feed — DRL mode only, same 10s cadence.
+  useEffect(() => {
+    if (!open || !isDrl) return;
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    async function poll() {
+      try {
+        const res = await fetch("/api/health", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = (await res.json()) as HealthResponse;
+        if (cancelled || data.status !== "ok") return;
+        const m = new Map<number, number>();
+        for (const [id, v] of Object.entries(data.health)) m.set(Number(id), v);
+        setHealth(m);
+      } catch {
+        // transient; the next tick will retry
+      }
+    }
+
+    poll();
+    const id = setInterval(poll, POLL_MS);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearInterval(id);
+    };
+  }, [open, isDrl]);
 
   if (!open) return null;
 
@@ -248,11 +288,7 @@ export default function PerformanceModal({
         onClick={onClose}
         className="absolute inset-0 h-full w-full cursor-default bg-black/50"
       />
-      <div
-        className={`relative z-10 flex w-full flex-col overflow-hidden rounded-xl border border-black/[.08] bg-white shadow-2xl dark:border-white/[.12] dark:bg-zinc-900 ${
-          isLw ? "max-h-[92vh] max-w-6xl" : "max-h-[85vh] max-w-2xl"
-        }`}
-      >
+      <div className="relative z-10 flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-black/[.08] bg-white shadow-2xl dark:border-white/[.12] dark:bg-zinc-900">
         <header className="flex items-center justify-between border-b border-black/[.08] px-5 py-4 dark:border-white/[.1]">
           <div className="flex flex-col gap-0.5">
             <h2 className="text-sm font-semibold">Detection performance</h2>
@@ -278,37 +314,37 @@ export default function PerformanceModal({
         </header>
 
         <div className="flex flex-col gap-6 overflow-auto p-5">
-          {isLw && (
-            <section className="flex flex-col gap-3">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                <h3 className="text-sm font-semibold">Network topology</h3>
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {removed.size > 0
-                    ? `${321 - removed.size} of 321 nodes active · ${removed.size} removed`
-                    : "321 nodes · sample movement"}
-                </span>
+          <section className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <h3 className="text-sm font-semibold">Network topology</h3>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                {removed.size > 0
+                  ? `${321 - removed.size} of 321 nodes active · ${removed.size} removed`
+                  : "321 nodes · sample movement"}
+              </span>
+            </div>
+            {removalAlert && (
+              <div className="flex items-start justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                <span>⚠ {removalAlert}</span>
+                <button
+                  type="button"
+                  onClick={() => setRemovalAlert(null)}
+                  className="shrink-0 leading-none text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
+                  aria-label="Dismiss"
+                >
+                  ×
+                </button>
               </div>
-              {removalAlert && (
-                <div className="flex items-start justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
-                  <span>⚠ {removalAlert}</span>
-                  <button
-                    type="button"
-                    onClick={() => setRemovalAlert(null)}
-                    className="shrink-0 leading-none text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
-                    aria-label="Dismiss"
-                  >
-                    ×
-                  </button>
-                </div>
-              )}
-              <NetworkMap attackers={attackers} removed={removed} />
-            </section>
-          )}
+            )}
+            <NetworkMap
+              attackers={attackers}
+              removed={removed}
+              health={health}
+            />
+          </section>
 
           <section className="flex flex-col gap-3">
-            {isLw && (
-              <h3 className="text-sm font-semibold">Detection metrics</h3>
-            )}
+            <h3 className="text-sm font-semibold">Detection metrics</h3>
 
             {rows ? (
               <table className="w-full border-collapse text-sm">

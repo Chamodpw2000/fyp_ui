@@ -37,10 +37,14 @@ function nodeTitle(
   id: number,
   kind: "Vehicle" | "RSU",
   key?: AttackKey,
+  health?: number | null,
 ): string {
-  return key
+  const base = key
     ? `${kind} ${id} — malicious (${CAT_LABEL[key]})`
     : `${kind} ${id} — benign`;
+  return health == null
+    ? base
+    : `${base} · health ${Math.round(health * 100)}%`;
 }
 
 // Small deterministic PRNG so the scene is identical on every render.
@@ -409,20 +413,25 @@ type NodeInfo = {
   id: number;
   kind: "Vehicle" | "RSU";
   attack: AttackKey | null;
+  health: number | null;
 };
 
 const NO_REMOVED: ReadonlySet<number> = new Set();
+const NO_HEALTH: ReadonlyMap<number, number> = new Map();
 
 type Props = {
   /** Attacker node IDs per attack category. */
   attackers?: AttackerMap;
   /** Node IDs the agent has pruned — hidden from the map. */
   removed?: ReadonlySet<number>;
+  /** Per-node health 0–1 (DRL mode); shown on hover and in the detail dialog. */
+  health?: ReadonlyMap<number, number>;
 };
 
 export default function NetworkMap({
   attackers = EMPTY_ATTACKERS,
   removed = NO_REMOVED,
+  health = NO_HEALTH,
 }: Props) {
   const [reduce, setReduce] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -619,7 +628,8 @@ export default function NetworkMap({
           {RSUS.filter((s) => !removed.has(s.id)).map((s) => {
             const key = assignment.get(s.id);
             const size = key ? 11 : 8.5;
-            const title = nodeTitle(s.id, "RSU", key);
+            const hp = health.get(s.id) ?? null;
+            const title = nodeTitle(s.id, "RSU", key, hp);
             return (
               <rect
                 key={s.id}
@@ -640,7 +650,12 @@ export default function NetworkMap({
                 onMouseMove={(e) => showTip(e, title)}
                 onMouseLeave={hideTip}
                 onClick={() =>
-                  setSelected({ id: s.id, kind: "RSU", attack: key ?? null })
+                  setSelected({
+                    id: s.id,
+                    kind: "RSU",
+                    attack: key ?? null,
+                    health: hp,
+                  })
                 }
               />
             );
@@ -658,10 +673,16 @@ export default function NetworkMap({
             const r = key ? v.r + 1.6 : v.r;
             const ring = key ? MALICIOUS_RING : undefined;
             const glow = key ? "url(#nm-glow)" : undefined;
-            const title = nodeTitle(v.id, "Vehicle", key);
+            const hp = health.get(v.id) ?? null;
+            const title = nodeTitle(v.id, "Vehicle", key, hp);
             const onEnter = (e: React.MouseEvent) => showTip(e, title);
             const onClick = () =>
-              setSelected({ id: v.id, kind: "Vehicle", attack: key ?? null });
+              setSelected({
+                id: v.id,
+                kind: "Vehicle",
+                attack: key ?? null,
+                health: hp,
+              });
 
             if (reduce) {
               return (
@@ -801,6 +822,27 @@ function NodeDetail({
           style={{ background: CATEGORY_SWATCH[info.attack] }}
         />
         {attackLabel}
+      </span>,
+    ]);
+  }
+  if (info.health != null) {
+    const pct = Math.round(info.health * 100);
+    const tone =
+      info.health < 0.4
+        ? { text: "text-red-600 dark:text-red-400", bar: "#dc2626" }
+        : info.health < 0.7
+          ? { text: "text-amber-600 dark:text-amber-400", bar: "#d97706" }
+          : { text: "text-emerald-600 dark:text-emerald-400", bar: "#059669" };
+    rows.push([
+      "Health",
+      <span key="h" className="inline-flex items-center gap-2">
+        <span className="h-1.5 w-16 overflow-hidden rounded-full bg-black/10 dark:bg-white/15">
+          <span
+            className="block h-full rounded-full"
+            style={{ width: `${pct}%`, background: tone.bar }}
+          />
+        </span>
+        <span className={`font-semibold ${tone.text}`}>{pct}%</span>
       </span>,
     ]);
   }
