@@ -135,6 +135,8 @@ export default function RunSimulationButton({
     : mode
       ? `Run ns-3 simulation with ${MODE_LABELS[mode]}`
       : "Run ns-3 simulation";
+  const runDisabled = controlsDisabled || percentInvalid || !mode;
+  const perfDisabled = disabled || !mode;
 
   async function run() {
     if (percentInvalid) return;
@@ -380,7 +382,7 @@ export default function RunSimulationButton({
         <button
           type="button"
           onClick={run}
-          disabled={controlsDisabled || percentInvalid || !mode}
+          disabled={runDisabled}
           title={
             !mode
               ? "Run a reset (light-weight or DRL agent mode) first"
@@ -395,7 +397,7 @@ export default function RunSimulationButton({
         <button
           type="button"
           onClick={() => setPerfOpen(true)}
-          disabled={disabled || !mode}
+          disabled={perfDisabled}
           className="flex h-12 items-center justify-center rounded-full border border-solid border-black/[.12] px-6 text-base font-medium transition-colors hover:bg-black/[.04] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.16] dark:hover:bg-[#1a1a1a]"
         >
           Show performance
