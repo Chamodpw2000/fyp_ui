@@ -24,14 +24,28 @@ const DEFAULTS = {
 const fieldClass =
   "h-10 rounded-md border border-black/[.12] bg-transparent px-3 text-sm outline-none focus:border-sky-500 dark:border-white/[.16]";
 
+/** Which reset was last run — decides the simulation flavour, or `null` if none yet. */
+export type SimulationMode = "lightweight" | "drl" | null;
+
+const MODE_LABELS: Record<"lightweight" | "drl", string> = {
+  lightweight: "LW mode",
+  drl: "DRL mode",
+};
+
 type Props = {
+  /** Set by the last completed reset; gates and labels the run button. */
+  mode?: SimulationMode;
   /** Blocked by another long-running task on the page (e.g. the reset script). */
   disabled?: boolean;
   /** Notifies the parent whenever the simulation starts or stops. */
   onRunningChange?: (running: boolean) => void;
 };
 
-export default function RunSimulationButton({ disabled = false, onRunningChange }: Props) {
+export default function RunSimulationButton({
+  mode = null,
+  disabled = false,
+  onRunningChange,
+}: Props) {
   const [simTime, setSimTime] = useState(DEFAULTS.simTime);
   const [attackSeed, setAttackSeed] = useState(DEFAULTS.attackSeed);
   const [splitPathDropRatio, setSplitPathDropRatio] = useState(DEFAULTS.splitPathDropRatio);
@@ -66,6 +80,12 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
   const percentInvalid = attackerMode === "percentage" && totalPercent > 100;
   // Any control that should be inert while this run — or the reset script — is active.
   const controlsDisabled = running || disabled;
+  // The run button needs a completed reset to know which mode to simulate.
+  const runLabel = running
+    ? "Running simulation…"
+    : mode
+      ? `Run ns-3 simulation with ${MODE_LABELS[mode]}`
+      : "Run ns-3 simulation";
 
   async function run() {
     if (percentInvalid) return;
@@ -293,16 +313,22 @@ export default function RunSimulationButton({ disabled = false, onRunningChange 
         <button
           type="button"
           onClick={run}
-          disabled={controlsDisabled || percentInvalid}
-          title={percentInvalid ? "Attacker percentages exceed 100%" : undefined}
+          disabled={controlsDisabled || percentInvalid || !mode}
+          title={
+            !mode
+              ? "Run a reset (light-weight or DRL agent mode) first"
+              : percentInvalid
+                ? "Attacker percentages exceed 100%"
+                : undefined
+          }
           className="flex h-12 items-center justify-center rounded-full bg-foreground px-6 text-base font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
         >
-          {running ? "Running simulation…" : "Run ns-3 simulation"}
+          {runLabel}
         </button>
         <button
           type="button"
           onClick={() => setPerfOpen(true)}
-          disabled={disabled}
+          disabled={disabled || !mode}
           className="flex h-12 items-center justify-center rounded-full border border-solid border-black/[.12] px-6 text-base font-medium transition-colors hover:bg-black/[.04] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.16] dark:hover:bg-[#1a1a1a]"
         >
           Show performance

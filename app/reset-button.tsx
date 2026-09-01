@@ -14,6 +14,12 @@ type Props = {
   disabled?: boolean;
   /** Notifies the parent whenever this reset script starts or stops. */
   onRunningChange?: (running: boolean) => void;
+  /** Fires once the reset script finishes successfully (not aborted, no error). */
+  onComplete?: () => void;
+  /** Fires when this reset is clicked, so the parent can hand it the log view. */
+  onActivate?: () => void;
+  /** Whether this reset currently owns the shared "View logs" slot. */
+  showLogs?: boolean;
 };
 
 export default function ResetButton({
@@ -22,6 +28,9 @@ export default function ResetButton({
   logTitle = "Reset script output",
   disabled = false,
   onRunningChange,
+  onComplete,
+  onActivate,
+  showLogs = true,
 }: Props) {
   const [running, setRunning] = useState(false);
   const [output, setOutput] = useState("");
@@ -38,6 +47,7 @@ export default function ResetButton({
   async function runReset() {
     if (running || disabled) return;
 
+    onActivate?.();
     setRunning(true);
     setError(null);
     setOutput("");
@@ -66,6 +76,8 @@ export default function ResetButton({
         if (done) break;
         setOutput((prev) => prev + decoder.decode(value, { stream: true }));
       }
+
+      onComplete?.();
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         setError((err as Error).message);
@@ -91,7 +103,7 @@ export default function ResetButton({
         >
           {running ? "Resetting…" : label}
         </button>
-        {(running || output) && (
+        {showLogs && (running || output) && (
           <button
             type="button"
             onClick={() => setLogsOpen(true)}
