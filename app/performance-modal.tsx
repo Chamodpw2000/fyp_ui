@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AttackTypeLabel, MccRow, MccTableResponse } from "@/types/mcc";
+import type { RemovedNodesResponse } from "@/types/removed-nodes";
 import type { SimulationMode } from "./run-simulation-button";
 import type { AttackerMap } from "./attacker-node-modal";
 import NetworkMap from "./network-map";
@@ -80,6 +81,10 @@ export default function PerformanceModal({
   const [reconnecting, setReconnecting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
+  // Node IDs pruned by the agent (union of every cycle in removed_nodes.csv).
+  const [removed, setRemoved] = useState<ReadonlySet<number>>(() => new Set());
+  const [removalAlert, setRemovalAlert] = useState<string | null>(null);
+
   const hadDataRef = useRef(false);
 
   // The two modes read from different CSVs — start each from a clean slate.
@@ -89,7 +94,16 @@ export default function PerformanceModal({
     setUpdatedAt(null);
     setPhase("loading");
     setErrorMsg(null);
+    setRemoved(new Set());
+    setRemovalAlert(null);
   }, [mode]);
+
+  // Auto-dismiss the removal alert.
+  useEffect(() => {
+    if (!removalAlert) return;
+    const t = setTimeout(() => setRemovalAlert(null), 8000);
+    return () => clearTimeout(t);
+  }, [removalAlert]);
 
   useEffect(() => {
     if (!open) return;
@@ -161,6 +175,64 @@ export default function PerformanceModal({
     };
   }, [open, mode]);
 
+  // Removed-nodes feed — same 10s cadence, LW mode only (that's where the map is).
+  useEffect(() => {
+    if (!open || !isLw) return;
+
+    let cancelled = false;
+    let baselined = false; // first fetch adopts existing cycles silently
+    let seenCycle = 0;
+    const controller = new AbortController();
+
+    async function poll() {
+      try {
+        const res = await fetch("/api/removed-nodes", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const data = (await res.json()) as RemovedNodesResponse;
+        if (cancelled || data.status !== "ok") return;
+
+        const all = new Set<number>();
+        for (const c of data.cycles) for (const id of c.nodeIds) all.add(id);
+        setRemoved(all);
+
+        const maxCycle = data.cycles.reduce(
+          (m, c) => Math.max(m, c.cycleId),
+          0,
+        );
+        if (!baselined) {
+          baselined = true;
+          seenCycle = maxCycle;
+          return;
+        }
+
+        const fresh = data.cycles.filter((c) => c.cycleId > seenCycle);
+        if (fresh.length > 0) {
+          seenCycle = maxCycle;
+          const ids = fresh.flatMap((c) => c.nodeIds);
+          const label =
+            fresh.length === 1
+              ? `Cycle ${fresh[0].cycleId}`
+              : `Cycles ${fresh[0].cycleId}–${fresh[fresh.length - 1].cycleId}`;
+          setRemovalAlert(
+            `${label}: removed ${ids.length} node${ids.length === 1 ? "" : "s"} — ${ids.join(", ")}`,
+          );
+        }
+      } catch {
+        // transient; the next tick will retry
+      }
+    }
+
+    poll();
+    const id = setInterval(poll, POLL_MS);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearInterval(id);
+    };
+  }, [open, isLw]);
+
   if (!open) return null;
 
   return createPortal(
@@ -211,10 +283,25 @@ export default function PerformanceModal({
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <h3 className="text-sm font-semibold">Network topology</h3>
                 <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  321 nodes · sample movement
+                  {removed.size > 0
+                    ? `${321 - removed.size} of 321 nodes active · ${removed.size} removed`
+                    : "321 nodes · sample movement"}
                 </span>
               </div>
-              <NetworkMap attackers={attackers} />
+              {removalAlert && (
+                <div className="flex items-start justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                  <span>⚠ {removalAlert}</span>
+                  <button
+                    type="button"
+                    onClick={() => setRemovalAlert(null)}
+                    className="shrink-0 leading-none text-amber-600 hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-200"
+                    aria-label="Dismiss"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              <NetworkMap attackers={attackers} removed={removed} />
             </section>
           )}
 

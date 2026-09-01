@@ -411,12 +411,19 @@ type NodeInfo = {
   attack: AttackKey | null;
 };
 
+const NO_REMOVED: ReadonlySet<number> = new Set();
+
 type Props = {
   /** Attacker node IDs per attack category. */
   attackers?: AttackerMap;
+  /** Node IDs the agent has pruned — hidden from the map. */
+  removed?: ReadonlySet<number>;
 };
 
-export default function NetworkMap({ attackers = EMPTY_ATTACKERS }: Props) {
+export default function NetworkMap({
+  attackers = EMPTY_ATTACKERS,
+  removed = NO_REMOVED,
+}: Props) {
   const [reduce, setReduce] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<{
@@ -531,7 +538,7 @@ export default function NetworkMap({ attackers = EMPTY_ATTACKERS }: Props) {
 
           {/* RSU coverage bloom */}
           <g className="text-indigo-400 dark:text-indigo-500">
-            {RSUS.map((s) => (
+            {RSUS.filter((s) => !removed.has(s.id)).map((s) => (
               <circle
                 key={s.id}
                 cx={s.x}
@@ -609,7 +616,7 @@ export default function NetworkMap({ attackers = EMPTY_ATTACKERS }: Props) {
           ))}
 
           {/* roadside units */}
-          {RSUS.map((s) => {
+          {RSUS.filter((s) => !removed.has(s.id)).map((s) => {
             const key = assignment.get(s.id);
             const size = key ? 11 : 8.5;
             const title = nodeTitle(s.id, "RSU", key);
@@ -640,7 +647,7 @@ export default function NetworkMap({ attackers = EMPTY_ATTACKERS }: Props) {
           })}
 
           {/* vehicles */}
-          {VEHICLES.map((v) => {
+          {VEHICLES.filter((v) => !removed.has(v.id)).map((v) => {
             const key = assignment.get(v.id);
             const [cx, cy] = CIRCUITS[v.circuit].fn(
               v.reverse ? 1 - v.start : v.start,
@@ -736,6 +743,12 @@ export default function NetworkMap({ attackers = EMPTY_ATTACKERS }: Props) {
           <span className="h-2.5 w-2.5 rounded-[3px] bg-indigo-500" />
           RSUs 121
         </li>
+        {removed.size > 0 && (
+          <li className="flex items-center gap-1.5 text-zinc-400 dark:text-zinc-500">
+            <span className="h-2.5 w-2.5 rounded-full border border-dashed border-zinc-400" />
+            Removed {removed.size}
+          </li>
+        )}
       </ul>
 
       {hover && (
