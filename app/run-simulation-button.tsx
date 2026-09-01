@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import LogModal from "./log-modal";
 import PerformanceModal from "./performance-modal";
 import AttackerNodeModal, {
@@ -8,10 +8,40 @@ import AttackerNodeModal, {
   EMPTY_ATTACKERS,
   EMPTY_PERCENTAGES,
   TOTAL_NODES,
+  type AttackKey,
   type AttackerMap,
   type AttackerMode,
   type AttackerPercentages,
 } from "./attacker-node-modal";
+
+/**
+ * Percentage mode before a run has no concrete node IDs yet — spread the
+ * requested per-category counts evenly across the 321 nodes so the map still
+ * shows the right totals and attack types.
+ */
+function samplePercentageAttackers(pct: AttackerPercentages): AttackerMap {
+  const out: AttackerMap = {
+    split_path: [],
+    interleaved_jamming: [],
+    flow_stretching: [],
+    asymmetric_spoofing: [],
+  };
+  const used = new Set<number>();
+
+  ATTACK_CATEGORIES.forEach((c, ci) => {
+    const count = Math.round((pct[c.key] / 100) * TOTAL_NODES);
+    if (count <= 0) return;
+    const step = TOTAL_NODES / count;
+    for (let n = 0; n < count; n++) {
+      let id = 1 + ((Math.round(n * step) + ci * 3) % TOTAL_NODES);
+      while (used.has(id)) id = (id % TOTAL_NODES) + 1;
+      used.add(id);
+      out[c.key as AttackKey].push(id);
+    }
+  });
+
+  return out;
+}
 
 const DEFAULTS = {
   simTime: "300",
@@ -48,7 +78,9 @@ export default function RunSimulationButton({
 }: Props) {
   const [simTime, setSimTime] = useState(DEFAULTS.simTime);
   const [attackSeed, setAttackSeed] = useState(DEFAULTS.attackSeed);
-  const [splitPathDropRatio, setSplitPathDropRatio] = useState(DEFAULTS.splitPathDropRatio);
+  const [splitPathDropRatio, setSplitPathDropRatio] = useState(
+    DEFAULTS.splitPathDropRatio,
+  );
   const [ijDropRatio, setIjDropRatio] = useState(DEFAULTS.ijDropRatio);
   const [fsStretchRatio, setFsStretchRatio] = useState(DEFAULTS.fsStretchRatio);
 
@@ -63,7 +95,8 @@ export default function RunSimulationButton({
   const [running, setRunning] = useState(false);
   const [output, setOutput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [resolvedAttackers, setResolvedAttackers] = useState<AttackerMap | null>(null);
+  const [resolvedAttackers, setResolvedAttackers] =
+    useState<AttackerMap | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const closeModal = useCallback(() => setModalOpen(false), []);
@@ -74,9 +107,25 @@ export default function RunSimulationButton({
     onRunningChange?.(running);
   }, [running, onRunningChange]);
 
-  const totalIdAttackers = ATTACK_CATEGORIES.reduce((sum, c) => sum + attackers[c.key].length, 0);
-  const totalPercent = ATTACK_CATEGORIES.reduce((sum, c) => sum + attackerPercentages[c.key], 0);
-  const hasAttackers = attackerMode === "ids" ? totalIdAttackers > 0 : totalPercent > 0;
+  // Concrete attacker node IDs for the performance map: explicit selection in
+  // IDs mode, the server's resolved set once a run has happened, otherwise an
+  // even sample that preserves the requested per-type counts.
+  const attackerAssignment = useMemo<AttackerMap>(() => {
+    if (attackerMode === "ids") return attackers;
+    if (resolvedAttackers) return resolvedAttackers;
+    return samplePercentageAttackers(attackerPercentages);
+  }, [attackerMode, attackers, resolvedAttackers, attackerPercentages]);
+
+  const totalIdAttackers = ATTACK_CATEGORIES.reduce(
+    (sum, c) => sum + attackers[c.key].length,
+    0,
+  );
+  const totalPercent = ATTACK_CATEGORIES.reduce(
+    (sum, c) => sum + attackerPercentages[c.key],
+    0,
+  );
+  const hasAttackers =
+    attackerMode === "ids" ? totalIdAttackers > 0 : totalPercent > 0;
   const percentInvalid = attackerMode === "percentage" && totalPercent > 100;
   // Any control that should be inert while this run — or the reset script — is active.
   const controlsDisabled = running || disabled;
@@ -117,7 +166,9 @@ export default function RunSimulationButton({
 
       if (!res.ok || !res.body) {
         const detail = await res.text().catch(() => "");
-        throw new Error(detail.trim() || `Request failed with status ${res.status}`);
+        throw new Error(
+          detail.trim() || `Request failed with status ${res.status}`,
+        );
       }
 
       const resolvedHeader = res.headers.get("X-Resolved-Attackers");
@@ -192,7 +243,9 @@ export default function RunSimulationButton({
             />
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Attack seed</span>
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              Attack seed
+            </span>
             <input
               type="number"
               step="1"
@@ -272,35 +325,49 @@ export default function RunSimulationButton({
 
           {percentInvalid && (
             <p className="text-xs font-medium text-red-600 dark:text-red-400">
-              Attacker percentages add up to {totalPercent}% — must be 100% or less before you can
-              run the simulation.
+              Attacker percentages add up to {totalPercent}% — must be 100% or
+              less before you can run the simulation.
             </p>
           )}
 
           {hasAttackers && attackerMode === "ids" && (
             <ul className="flex flex-col gap-1.5">
-              {ATTACK_CATEGORIES.filter((c) => attackers[c.key].length > 0).map((c) => (
-                <li key={c.key} className="flex items-start gap-2 text-xs">
-                  <span className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${c.swatch}`} />
-                  <span className="font-medium text-zinc-600 dark:text-zinc-300">{c.label}:</span>
-                  <span className="font-mono text-zinc-500 dark:text-zinc-400">
-                    {attackers[c.key].join(", ")}
-                  </span>
-                </li>
-              ))}
+              {ATTACK_CATEGORIES.filter((c) => attackers[c.key].length > 0).map(
+                (c) => (
+                  <li key={c.key} className="flex items-start gap-2 text-xs">
+                    <span
+                      className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${c.swatch}`}
+                    />
+                    <span className="font-medium text-zinc-600 dark:text-zinc-300">
+                      {c.label}:
+                    </span>
+                    <span className="font-mono text-zinc-500 dark:text-zinc-400">
+                      {attackers[c.key].join(", ")}
+                    </span>
+                  </li>
+                ),
+              )}
             </ul>
           )}
 
           {hasAttackers && attackerMode === "percentage" && (
             <ul className="flex flex-col gap-1.5">
-              {ATTACK_CATEGORIES.filter((c) => attackerPercentages[c.key] > 0).map((c) => (
+              {ATTACK_CATEGORIES.filter(
+                (c) => attackerPercentages[c.key] > 0,
+              ).map((c) => (
                 <li key={c.key} className="flex items-center gap-2 text-xs">
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${c.swatch}`} />
-                  <span className="font-medium text-zinc-600 dark:text-zinc-300">{c.label}:</span>
+                  <span
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${c.swatch}`}
+                  />
+                  <span className="font-medium text-zinc-600 dark:text-zinc-300">
+                    {c.label}:
+                  </span>
                   <span className="text-zinc-500 dark:text-zinc-400">
                     {attackerPercentages[c.key]}% (≈{" "}
-                    {Math.round((attackerPercentages[c.key] / 100) * TOTAL_NODES)} nodes, resolved on
-                    the server)
+                    {Math.round(
+                      (attackerPercentages[c.key] / 100) * TOTAL_NODES,
+                    )}{" "}
+                    nodes, resolved on the server)
                   </span>
                 </li>
               ))}
@@ -358,19 +425,29 @@ export default function RunSimulationButton({
       </div>
 
       {error && (
-        <p className="text-sm font-medium text-red-600 dark:text-red-400">Error: {error}</p>
+        <p className="text-sm font-medium text-red-600 dark:text-red-400">
+          Error: {error}
+        </p>
       )}
 
       {resolvedAttackers &&
         ATTACK_CATEGORIES.some((c) => resolvedAttackers[c.key].length > 0) && (
           <div className="flex flex-col gap-2 rounded-lg border border-black/[.08] p-4 dark:border-white/[.1]">
-            <span className="text-xs font-semibold">Resolved attacker nodes (from server)</span>
+            <span className="text-xs font-semibold">
+              Resolved attacker nodes (from server)
+            </span>
             <ul className="flex flex-col gap-1.5">
-              {ATTACK_CATEGORIES.filter((c) => resolvedAttackers[c.key].length > 0).map((c) => (
+              {ATTACK_CATEGORIES.filter(
+                (c) => resolvedAttackers[c.key].length > 0,
+              ).map((c) => (
                 <li key={c.key} className="flex flex-col gap-0.5 text-xs">
                   <span className="flex items-center gap-2">
-                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${c.swatch}`} />
-                    <span className="font-medium text-zinc-600 dark:text-zinc-300">{c.label}</span>
+                    <span
+                      className={`h-2.5 w-2.5 shrink-0 rounded-full ${c.swatch}`}
+                    />
+                    <span className="font-medium text-zinc-600 dark:text-zinc-300">
+                      {c.label}
+                    </span>
                     <span className="text-zinc-400 dark:text-zinc-500">
                       ({resolvedAttackers[c.key].length} nodes)
                     </span>
@@ -392,7 +469,12 @@ export default function RunSimulationButton({
         onStop={stop}
       />
 
-      <PerformanceModal open={perfOpen} onClose={closePerf} mode={mode} />
+      <PerformanceModal
+        open={perfOpen}
+        onClose={closePerf}
+        mode={mode}
+        attackers={attackerAssignment}
+      />
 
       <AttackerNodeModal
         open={modalOpen}

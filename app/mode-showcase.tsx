@@ -21,7 +21,11 @@ export default function ModeShowcase({ mode }: Props) {
             "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
           title: "Light-weight mode",
           kind: "Rule-based mitigation system",
-          chips: ["Fixed thresholds", "Deterministic verdicts", "Microsecond decisions"],
+          chips: [
+            "Fixed thresholds",
+            "Deterministic verdicts",
+            "Microsecond decisions",
+          ],
           chipClass:
             "border-emerald-200 text-emerald-700 dark:border-emerald-500/25 dark:text-emerald-300",
         }
@@ -50,7 +54,9 @@ export default function ModeShowcase({ mode }: Props) {
             {meta.badge}
           </span>
           <div className="flex flex-col">
-            <h2 className="text-sm font-semibold text-white drop-shadow">{meta.title}</h2>
+            <h2 className="text-sm font-semibold text-white drop-shadow">
+              {meta.title}
+            </h2>
             <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-white/75">
               {meta.kind}
             </p>
@@ -99,11 +105,29 @@ function CurrentsArt() {
         </filter>
       </defs>
 
-      <rect width="400" height="150" fill="url(#lw-bg)" className="dark:hidden" />
-      <rect width="400" height="150" fill="url(#lw-bg-dark)" className="hidden dark:block" />
+      <rect
+        width="400"
+        height="150"
+        fill="url(#lw-bg)"
+        className="dark:hidden"
+      />
+      <rect
+        width="400"
+        height="150"
+        fill="url(#lw-bg-dark)"
+        className="hidden dark:block"
+      />
 
       {/* soft orbs */}
-      <circle cx="70" cy="40" r="34" fill="#34d399" opacity="0.45" filter="url(#lw-soft)" className="ms-float" />
+      <circle
+        cx="70"
+        cy="40"
+        r="34"
+        fill="#34d399"
+        opacity="0.45"
+        filter="url(#lw-soft)"
+        className="ms-float"
+      />
       <circle
         cx="330"
         cy="55"
@@ -184,11 +208,29 @@ function BloomArt() {
         </filter>
       </defs>
 
-      <rect width="400" height="150" fill="url(#drl-bg)" className="dark:hidden" />
-      <rect width="400" height="150" fill="url(#drl-bg-dark)" className="hidden dark:block" />
+      <rect
+        width="400"
+        height="150"
+        fill="url(#drl-bg)"
+        className="dark:hidden"
+      />
+      <rect
+        width="400"
+        height="150"
+        fill="url(#drl-bg-dark)"
+        className="hidden dark:block"
+      />
 
       {/* floating orbs */}
-      <circle cx="60" cy="110" r="40" fill="#c084fc" opacity="0.4" filter="url(#drl-soft)" className="ms-float" />
+      <circle
+        cx="60"
+        cy="110"
+        r="40"
+        fill="#c084fc"
+        opacity="0.4"
+        filter="url(#drl-soft)"
+        className="ms-float"
+      />
       <circle
         cx="350"
         cy="40"
@@ -208,7 +250,13 @@ function BloomArt() {
       </g>
 
       {/* central glow */}
-      <circle cx="200" cy="75" r="52" fill="url(#drl-glow)" className="ms-breathe" />
+      <circle
+        cx="200"
+        cy="75"
+        r="52"
+        fill="url(#drl-glow)"
+        className="ms-breathe"
+      />
 
       {/* orbiting tokens */}
       <g style={{ transformOrigin: "200px 75px" }} className="ms-orbit">
@@ -216,7 +264,11 @@ function BloomArt() {
         <circle cx="200" cy="141" r="3.5" fill="#e879f9" />
       </g>
       <g
-        style={{ transformOrigin: "200px 75px", animationDuration: "11s", animationDirection: "reverse" }}
+        style={{
+          transformOrigin: "200px 75px",
+          animationDuration: "11s",
+          animationDirection: "reverse",
+        }}
         className="ms-orbit"
       >
         <circle cx="134" cy="75" r="4" fill="#d946ef" />

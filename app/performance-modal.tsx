@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AttackTypeLabel, MccRow, MccTableResponse } from "@/types/mcc";
 import type { SimulationMode } from "./run-simulation-button";
+import type { AttackerMap } from "./attacker-node-modal";
+import NetworkMap from "./network-map";
 
 const POLL_MS = 10_000;
 
@@ -52,14 +54,28 @@ function relativeTime(iso: string, now: number): string {
   return `updated ${hrs}h ${mins % 60}m ago`;
 }
 
-type Props = { open: boolean; onClose: () => void; mode: SimulationMode };
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  mode: SimulationMode;
+  /** Attacker node IDs per attack category — drives the map's malicious nodes. */
+  attackers: AttackerMap;
+};
 
 const NUM_COL = "px-3 py-2 text-right font-mono tabular-nums";
 
-export default function PerformanceModal({ open, onClose, mode }: Props) {
+export default function PerformanceModal({
+  open,
+  onClose,
+  mode,
+  attackers,
+}: Props) {
+  const isLw = mode === "lightweight";
   const [rows, setRows] = useState<MccRow[] | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"loading" | "waiting" | "error">("loading");
+  const [phase, setPhase] = useState<"loading" | "waiting" | "error">(
+    "loading",
+  );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -100,7 +116,10 @@ export default function PerformanceModal({ open, onClose, mode }: Props) {
 
     async function poll() {
       try {
-        const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+        const res = await fetch(url, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
         const data = (await res.json()) as MccTableResponse;
         if (cancelled) return;
 
@@ -157,12 +176,18 @@ export default function PerformanceModal({ open, onClose, mode }: Props) {
         onClick={onClose}
         className="absolute inset-0 h-full w-full cursor-default bg-black/50"
       />
-      <div className="relative z-10 flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-black/[.08] bg-white shadow-2xl dark:border-white/[.12] dark:bg-zinc-900">
+      <div
+        className={`relative z-10 flex w-full flex-col overflow-hidden rounded-xl border border-black/[.08] bg-white shadow-2xl dark:border-white/[.12] dark:bg-zinc-900 ${
+          isLw ? "max-h-[92vh] max-w-6xl" : "max-h-[85vh] max-w-2xl"
+        }`}
+      >
         <header className="flex items-center justify-between border-b border-black/[.08] px-5 py-4 dark:border-white/[.1]">
           <div className="flex flex-col gap-0.5">
             <h2 className="text-sm font-semibold">Detection performance</h2>
             <span className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-              {updatedAt ? relativeTime(updatedAt, now) : "live · polls every 10s"}
+              {updatedAt
+                ? relativeTime(updatedAt, now)
+                : "live · polls every 10s"}
               {reconnecting && (
                 <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
@@ -180,63 +205,94 @@ export default function PerformanceModal({ open, onClose, mode }: Props) {
           </button>
         </header>
 
-        <div className="overflow-auto p-5">
-          {rows ? (
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  <th className="px-3 py-2 text-left font-medium">Attack Type</th>
-                  <th className="px-3 py-2 text-right font-medium">TP</th>
-                  <th className="px-3 py-2 text-right font-medium">FP</th>
-                  <th className="px-3 py-2 text-right font-medium">TN</th>
-                  <th className="px-3 py-2 text-right font-medium">FN</th>
-                  <th className="px-3 py-2 text-right font-medium">MCC</th>
-                  <th className="px-3 py-2 text-right font-medium">Avg TP Latency</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => {
-                  const isOverall = r.attackType === OVERALL;
-                  return (
-                    <tr
-                      key={r.attackType}
-                      className={
-                        isOverall
-                          ? "border-t-2 border-black/20 font-semibold dark:border-white/25"
-                          : "border-t border-black/[.06] dark:border-white/[.08]"
-                      }
-                    >
-                      <td className="px-3 py-2 text-left">{DISPLAY_LABELS[r.attackType]}</td>
-                      <td className={NUM_COL}>{r.tp}</td>
-                      <td className={NUM_COL}>{r.fp}</td>
-                      <td className={NUM_COL}>{r.tn}</td>
-                      <td className={NUM_COL}>{r.fn}</td>
-                      <td className={`${NUM_COL} font-semibold`} style={{ color: mccColor(r.mcc) }}>
-                        {r.mcc.toFixed(4)}
-                      </td>
-                      <td className={NUM_COL}>
-                        {r.avgTpLatency === null ? (
-                          <span className="text-zinc-400 dark:text-zinc-600">—</span>
-                        ) : (
-                          r.avgTpLatency.toFixed(2)
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : phase === "waiting" ? (
-            <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-              Waiting for first detection cycle…
-            </p>
-          ) : phase === "error" ? (
-            <p className="py-8 text-center text-sm font-medium text-red-600 dark:text-red-400">
-              {errorMsg ?? "Failed to load performance data."}
-            </p>
-          ) : (
-            <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
+        <div className="flex flex-col gap-6 overflow-auto p-5">
+          {isLw && (
+            <section className="flex flex-col gap-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <h3 className="text-sm font-semibold">Network topology</h3>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  321 nodes · sample movement
+                </span>
+              </div>
+              <NetworkMap attackers={attackers} />
+            </section>
           )}
+
+          <section className="flex flex-col gap-3">
+            {isLw && (
+              <h3 className="text-sm font-semibold">Detection metrics</h3>
+            )}
+
+            {rows ? (
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <th className="px-3 py-2 text-left font-medium">
+                      Attack Type
+                    </th>
+                    <th className="px-3 py-2 text-right font-medium">TP</th>
+                    <th className="px-3 py-2 text-right font-medium">FP</th>
+                    <th className="px-3 py-2 text-right font-medium">TN</th>
+                    <th className="px-3 py-2 text-right font-medium">FN</th>
+                    <th className="px-3 py-2 text-right font-medium">MCC</th>
+                    <th className="px-3 py-2 text-right font-medium">
+                      Avg TP Latency
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const isOverall = r.attackType === OVERALL;
+                    return (
+                      <tr
+                        key={r.attackType}
+                        className={
+                          isOverall
+                            ? "border-t-2 border-black/20 font-semibold dark:border-white/25"
+                            : "border-t border-black/[.06] dark:border-white/[.08]"
+                        }
+                      >
+                        <td className="px-3 py-2 text-left">
+                          {DISPLAY_LABELS[r.attackType]}
+                        </td>
+                        <td className={NUM_COL}>{r.tp}</td>
+                        <td className={NUM_COL}>{r.fp}</td>
+                        <td className={NUM_COL}>{r.tn}</td>
+                        <td className={NUM_COL}>{r.fn}</td>
+                        <td
+                          className={`${NUM_COL} font-semibold`}
+                          style={{ color: mccColor(r.mcc) }}
+                        >
+                          {r.mcc.toFixed(4)}
+                        </td>
+                        <td className={NUM_COL}>
+                          {r.avgTpLatency === null ? (
+                            <span className="text-zinc-400 dark:text-zinc-600">
+                              —
+                            </span>
+                          ) : (
+                            r.avgTpLatency.toFixed(2)
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : phase === "waiting" ? (
+              <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                Waiting for first detection cycle…
+              </p>
+            ) : phase === "error" ? (
+              <p className="py-8 text-center text-sm font-medium text-red-600 dark:text-red-400">
+                {errorMsg ?? "Failed to load performance data."}
+              </p>
+            ) : (
+              <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                Loading…
+              </p>
+            )}
+          </section>
         </div>
 
         <footer className="flex items-center justify-between gap-3 border-t border-black/[.08] px-5 py-3 dark:border-white/[.1]">
