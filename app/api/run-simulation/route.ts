@@ -9,6 +9,9 @@ export const maxDuration = 3600;
 // Directory that contains the `waf` script (the ns-3 root).
 // Override with the NS3_DIR environment variable.
 const NS3_DIR = process.env.NS3_DIR || "/home/chamod/ns-allinone-3.35/ns-3.35";
+// The build/run entrypoint inside NS3_DIR and the scratch program to run.
+const NS3_RUN_BIN = process.env.NS3_RUN_BIN || "./waf";
+const NS3_SCRATCH_PROGRAM = process.env.NS3_SCRATCH_PROGRAM || "scratch/auto";
 
 const ATTACK_CATEGORIES = [
   "split_path",
@@ -111,7 +114,10 @@ function resolvePercentages(
   }
 
   const total = pool.length;
-  const totalPercent = ATTACK_CATEGORIES.reduce((sum, c) => sum + percentages[c], 0);
+  const totalPercent = ATTACK_CATEGORIES.reduce(
+    (sum, c) => sum + percentages[c],
+    0,
+  );
   if (totalPercent > 100) {
     throw new Error(
       `attacker percentages add up to ${totalPercent}%, which exceeds 100% (nodes cannot overlap)`,
@@ -127,7 +133,10 @@ function resolvePercentages(
 
   let cursor = 0;
   for (const cat of ATTACK_CATEGORIES) {
-    const count = Math.min(Math.round((percentages[cat] / 100) * total), total - cursor);
+    const count = Math.min(
+      Math.round((percentages[cat] / 100) * total),
+      total - cursor,
+    );
     result[cat] = pool.slice(cursor, cursor + count).sort((a, b) => a - b);
     cursor += count;
   }
@@ -137,14 +146,18 @@ function resolvePercentages(
 function parseParams(body: Record<string, unknown>): SimParams {
   const simTimeRaw = body.simTime;
   const simTime =
-    simTimeRaw === undefined || simTimeRaw === "" ? DEFAULTS.simTime : Number(simTimeRaw);
+    simTimeRaw === undefined || simTimeRaw === ""
+      ? DEFAULTS.simTime
+      : Number(simTimeRaw);
   if (!Number.isFinite(simTime) || simTime <= 0) {
     throw new Error("simTime must be a positive number");
   }
 
   const seedRaw = body.attackSeed;
   const attackSeed =
-    seedRaw === undefined || seedRaw === "" ? DEFAULTS.attackSeed : Number(seedRaw);
+    seedRaw === undefined || seedRaw === ""
+      ? DEFAULTS.attackSeed
+      : Number(seedRaw);
   if (!Number.isInteger(attackSeed)) {
     throw new Error("attack_seed must be an integer");
   }
@@ -157,9 +170,15 @@ function parseParams(body: Record<string, unknown>): SimParams {
     attackers = resolvePercentages(
       {
         split_path: parsePercent(raw.split_path, "split_path"),
-        interleaved_jamming: parsePercent(raw.interleaved_jamming, "interleaved_jamming"),
+        interleaved_jamming: parsePercent(
+          raw.interleaved_jamming,
+          "interleaved_jamming",
+        ),
         flow_stretching: parsePercent(raw.flow_stretching, "flow_stretching"),
-        asymmetric_spoofing: parsePercent(raw.asymmetric_spoofing, "asymmetric_spoofing"),
+        asymmetric_spoofing: parsePercent(
+          raw.asymmetric_spoofing,
+          "asymmetric_spoofing",
+        ),
       },
       attackSeed,
     );
@@ -167,9 +186,15 @@ function parseParams(body: Record<string, unknown>): SimParams {
     const raw = (body.attackers ?? {}) as Record<string, unknown>;
     attackers = {
       split_path: parseIds(raw.split_path, "split_path"),
-      interleaved_jamming: parseIds(raw.interleaved_jamming, "interleaved_jamming"),
+      interleaved_jamming: parseIds(
+        raw.interleaved_jamming,
+        "interleaved_jamming",
+      ),
       flow_stretching: parseIds(raw.flow_stretching, "flow_stretching"),
-      asymmetric_spoofing: parseIds(raw.asymmetric_spoofing, "asymmetric_spoofing"),
+      asymmetric_spoofing: parseIds(
+        raw.asymmetric_spoofing,
+        "asymmetric_spoofing",
+      ),
     };
   }
 
@@ -181,18 +206,31 @@ function parseParams(body: Record<string, unknown>): SimParams {
       "split_path_drop_ratio",
       DEFAULTS.splitPathDropRatio,
     ),
-    ijDropRatio: parseRatio(body.ijDropRatio, "ij_drop_ratio", DEFAULTS.ijDropRatio),
-    fsStretchRatio: parseRatio(body.fsStretchRatio, "fs_stretch_ratio", DEFAULTS.fsStretchRatio),
+    ijDropRatio: parseRatio(
+      body.ijDropRatio,
+      "ij_drop_ratio",
+      DEFAULTS.ijDropRatio,
+    ),
+    fsStretchRatio: parseRatio(
+      body.fsStretchRatio,
+      "fs_stretch_ratio",
+      DEFAULTS.fsStretchRatio,
+    ),
     attackers,
   };
 }
 
 function buildCommand(p: SimParams): string {
-  const parts = ["./waf --run 'scratch/auto", `--simTime=${p.simTime}`];
+  const parts = [
+    `${NS3_RUN_BIN} --run '${NS3_SCRATCH_PROGRAM}`,
+    `--simTime=${p.simTime}`,
+  ];
 
   const active = ATTACK_CATEGORIES.filter((c) => p.attackers[c].length > 0);
   if (active.length > 0) {
-    const inner = active.map((c) => `${c}=[${p.attackers[c].join(",")}]`).join(",");
+    const inner = active
+      .map((c) => `${c}=[${p.attackers[c].join(",")}]`)
+      .join(",");
     parts.push(`--enable_attackers="{${inner}}"`);
   }
 
