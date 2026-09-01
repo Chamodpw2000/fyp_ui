@@ -5,7 +5,13 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 export const runtime = "nodejs";
 
-const CSV_PATH = process.env.MCC_TABLE_CSV_PATH || "/tmp/ai_agent/mcc_table_latest.csv";
+const LW_CSV_PATH = process.env.MCC_TABLE_CSV_PATH || "/tmp/ai_agent/mcc_table_latest.csv";
+const DRL_CSV_PATH =
+  process.env.MCC_TABLE_CSV_PATH_DRL || "/tmp/drl_agent/mcc_table_latest.csv";
+
+function csvPathForMode(mode: string | null): string {
+  return mode === "drl" ? DRL_CSV_PATH : LW_CSV_PATH;
+}
 
 const EXPECTED_HEADER = [
   "Attack Type",
@@ -104,14 +110,16 @@ function json(body: MccTableResponse, status: number): Response {
   });
 }
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
+  const csvPath = csvPathForMode(new URL(request.url).searchParams.get("mode"));
+
   let text: string;
   let updatedAt: string;
 
   try {
     const [fileText, stats] = await Promise.all([
-      readFile(CSV_PATH, "utf8"),
-      stat(CSV_PATH),
+      readFile(csvPath, "utf8"),
+      stat(csvPath),
     ]);
     text = fileText;
     updatedAt = stats.mtime.toISOString();

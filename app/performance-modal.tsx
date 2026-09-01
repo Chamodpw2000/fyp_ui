@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { AttackTypeLabel, MccRow, MccTableResponse } from "@/types/mcc";
+import type { SimulationMode } from "./run-simulation-button";
 
 const POLL_MS = 10_000;
 
@@ -51,11 +52,11 @@ function relativeTime(iso: string, now: number): string {
   return `updated ${hrs}h ${mins % 60}m ago`;
 }
 
-type Props = { open: boolean; onClose: () => void };
+type Props = { open: boolean; onClose: () => void; mode: SimulationMode };
 
 const NUM_COL = "px-3 py-2 text-right font-mono tabular-nums";
 
-export default function PerformanceModal({ open, onClose }: Props) {
+export default function PerformanceModal({ open, onClose, mode }: Props) {
   const [rows, setRows] = useState<MccRow[] | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [phase, setPhase] = useState<"loading" | "waiting" | "error">("loading");
@@ -64,6 +65,15 @@ export default function PerformanceModal({ open, onClose }: Props) {
   const [now, setNow] = useState(() => Date.now());
 
   const hadDataRef = useRef(false);
+
+  // The two modes read from different CSVs — start each from a clean slate.
+  useEffect(() => {
+    hadDataRef.current = false;
+    setRows(null);
+    setUpdatedAt(null);
+    setPhase("loading");
+    setErrorMsg(null);
+  }, [mode]);
 
   useEffect(() => {
     if (!open) return;
@@ -86,9 +96,11 @@ export default function PerformanceModal({ open, onClose }: Props) {
     const controller = new AbortController();
     setReconnecting(hadDataRef.current);
 
+    const url = mode === "drl" ? "/api/mcc?mode=drl" : "/api/mcc";
+
     async function poll() {
       try {
-        const res = await fetch("/api/mcc", { cache: "no-store", signal: controller.signal });
+        const res = await fetch(url, { cache: "no-store", signal: controller.signal });
         const data = (await res.json()) as MccTableResponse;
         if (cancelled) return;
 
@@ -128,7 +140,7 @@ export default function PerformanceModal({ open, onClose }: Props) {
       clearInterval(pollId);
       clearInterval(tickId);
     };
-  }, [open]);
+  }, [open, mode]);
 
   if (!open) return null;
 

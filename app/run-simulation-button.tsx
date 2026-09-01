@@ -392,7 +392,7 @@ export default function RunSimulationButton({
         onStop={stop}
       />
 
-      <PerformanceModal open={perfOpen} onClose={closePerf} />
+      <PerformanceModal open={perfOpen} onClose={closePerf} mode={mode} />
 
       <AttackerNodeModal
         open={modalOpen}

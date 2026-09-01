@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ModeShowcase from "./mode-showcase";
 import ResetButton from "./reset-button";
 import RunSimulationButton, { type SimulationMode } from "./run-simulation-button";
 
@@ -38,6 +39,7 @@ export default function HomeControls() {
           showLogs={logOwner === "drl"}
         />
       </div>
+      <ModeShowcase mode={mode} />
       <RunSimulationButton
         mode={mode}
         disabled={anyBusy && !simRunning}

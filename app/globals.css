@@ -24,3 +24,88 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* --- Mode showcase artwork --- */
+@keyframes ms-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ms-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ms-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes ms-drift {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-120px);
+  }
+}
+
+@keyframes ms-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.07);
+  }
+}
+
+.ms-card {
+  animation: ms-rise 0.4s ease both;
+}
+
+.ms-orbit {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ms-spin 18s linear infinite;
+}
+
+.ms-float {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ms-float 7s ease-in-out infinite;
+}
+
+.ms-drift {
+  animation: ms-drift 12s linear infinite alternate;
+}
+
+.ms-breathe {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ms-breathe 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ms-card,
+  .ms-orbit,
+  .ms-float,
+  .ms-drift,
+  .ms-breathe {
+    animation: none;
+  }
+}
