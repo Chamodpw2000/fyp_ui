@@ -62,6 +62,8 @@ type Props = {
   mode: SimulationMode;
   /** Attacker node IDs per attack category — drives the map's malicious nodes. */
   attackers: AttackerMap;
+  /** Bumped whenever a reset script starts — invalidates stale table data immediately. */
+  resetSignal?: number;
 };
 
 const NUM_COL = "px-3 py-2 text-right font-mono tabular-nums";
@@ -71,6 +73,7 @@ export default function PerformanceModal({
   onClose,
   mode,
   attackers,
+  resetSignal,
 }: Props) {
   const isDrl = mode === "drl";
   const [rows, setRows] = useState<MccRow[] | null>(null);
@@ -93,6 +96,8 @@ export default function PerformanceModal({
   const hadDataRef = useRef(false);
 
   // The two modes read from different CSVs — start each from a clean slate.
+  // Also clears on resetSignal: a reset re-run of the *same* mode wipes the
+  // server-side CSVs too, so the old table must not linger until the next poll.
   useEffect(() => {
     hadDataRef.current = false;
     setRows(null);
@@ -102,7 +107,7 @@ export default function PerformanceModal({
     setRemoved(new Set());
     setRemovalAlert(null);
     setHealth(new Map());
-  }, [mode]);
+  }, [mode, resetSignal]);
 
   // Auto-dismiss the removal alert.
   useEffect(() => {
@@ -179,7 +184,7 @@ export default function PerformanceModal({
       clearInterval(pollId);
       clearInterval(tickId);
     };
-  }, [open, mode]);
+  }, [open, mode, resetSignal]);
 
   // Removed-nodes feed — same 10s cadence, for whichever mode is active.
   useEffect(() => {
@@ -239,7 +244,7 @@ export default function PerformanceModal({
       controller.abort();
       clearInterval(id);
     };
-  }, [open, mode]);
+  }, [open, mode, resetSignal]);
 
   // Per-node health feed — DRL mode only, same 10s cadence.
   useEffect(() => {
@@ -271,7 +276,7 @@ export default function PerformanceModal({
       controller.abort();
       clearInterval(id);
     };
-  }, [open, isDrl]);
+  }, [open, isDrl, resetSignal]);
 
   if (!open) return null;
 
@@ -358,9 +363,12 @@ export default function PerformanceModal({
                     <th className="px-3 py-2 text-right font-medium">TN</th>
                     <th className="px-3 py-2 text-right font-medium">FN</th>
                     <th className="px-3 py-2 text-right font-medium">MCC</th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      Avg TP Latency
-                    </th>
+                    {/* DRL mode: Avg TP Latency column hidden per request. */}
+                    {!isDrl && (
+                      <th className="px-3 py-2 text-right font-medium">
+                        Avg TP Latency
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -388,15 +396,18 @@ export default function PerformanceModal({
                         >
                           {r.mcc.toFixed(4)}
                         </td>
-                        <td className={NUM_COL}>
-                          {r.avgTpLatency === null ? (
-                            <span className="text-zinc-400 dark:text-zinc-600">
-                              —
-                            </span>
-                          ) : (
-                            r.avgTpLatency.toFixed(2)
-                          )}
-                        </td>
+                        {/* DRL mode: Avg TP Latency column hidden per request. */}
+                        {!isDrl && (
+                          <td className={NUM_COL}>
+                            {r.avgTpLatency === null ? (
+                              <span className="text-zinc-400 dark:text-zinc-600">
+                                —
+                              </span>
+                            ) : (
+                              r.avgTpLatency.toFixed(2)
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

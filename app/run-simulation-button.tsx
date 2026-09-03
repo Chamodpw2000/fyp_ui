@@ -69,12 +69,15 @@ type Props = {
   disabled?: boolean;
   /** Notifies the parent whenever the simulation starts or stops. */
   onRunningChange?: (running: boolean) => void;
+  /** Bumped whenever a reset script starts — forwarded to invalidate the stale performance table. */
+  resetSignal?: number;
 };
 
 export default function RunSimulationButton({
   mode = null,
   disabled = false,
   onRunningChange,
+  resetSignal,
 }: Props) {
   const [simTime, setSimTime] = useState(DEFAULTS.simTime);
   const [attackSeed, setAttackSeed] = useState(DEFAULTS.attackSeed);
@@ -476,6 +479,7 @@ export default function RunSimulationButton({
         onClose={closePerf}
         mode={mode}
         attackers={attackerAssignment}
+        resetSignal={resetSignal}
       />
 
       <AttackerNodeModal
